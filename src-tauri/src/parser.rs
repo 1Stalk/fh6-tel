@@ -82,23 +82,23 @@ pub fn parse(buf: &[u8]) -> Result<TelemetryPacket, ParseError> {
     let vel_x = c.read_f32::<LittleEndian>()?;
     let vel_y = c.read_f32::<LittleEndian>()?;
     let vel_z = c.read_f32::<LittleEndian>()?;
-    skip(&mut c, 3)?; // AngularVelocity X/Y/Z
-    skip(&mut c, 3)?; // Yaw/Pitch/Roll
-    skip(&mut c, 4)?; // NormalizedSuspensionTravel FL/FR/RL/RR
+    skip_f32_fields(&mut c, 3)?; // AngularVelocity X/Y/Z
+    skip_f32_fields(&mut c, 3)?; // Yaw/Pitch/Roll
+    skip_f32_fields(&mut c, 4)?; // NormalizedSuspensionTravel FL/FR/RL/RR
     let tire_slip_ratio_fl = c.read_f32::<LittleEndian>()?;
     let tire_slip_ratio_fr = c.read_f32::<LittleEndian>()?;
     let tire_slip_ratio_rl = c.read_f32::<LittleEndian>()?;
     let tire_slip_ratio_rr = c.read_f32::<LittleEndian>()?;
-    skip(&mut c, 4)?; // WheelRotationSpeed
-    skip(&mut c, 4)?; // WheelOnRumbleStrip
-    skip(&mut c, 4)?; // WheelInPuddleDepth
-    skip(&mut c, 4)?; // SurfaceRumble
+    skip_f32_fields(&mut c, 4)?; // WheelRotationSpeed
+    skip_f32_fields(&mut c, 4)?; // WheelOnRumbleStrip
+    skip_f32_fields(&mut c, 4)?; // WheelInPuddleDepth
+    skip_f32_fields(&mut c, 4)?; // SurfaceRumble
     let tire_slip_angle_fl = c.read_f32::<LittleEndian>()?;
     let tire_slip_angle_fr = c.read_f32::<LittleEndian>()?;
     let tire_slip_angle_rl = c.read_f32::<LittleEndian>()?;
     let tire_slip_angle_rr = c.read_f32::<LittleEndian>()?;
-    skip(&mut c, 4)?; // TireCombinedSlip
-    skip(&mut c, 4)?; // SuspensionTravelMeters
+    skip_f32_fields(&mut c, 4)?; // TireCombinedSlip
+    skip_f32_fields(&mut c, 4)?; // SuspensionTravelMeters
     let car_ordinal = c.read_i32::<LittleEndian>()?;
     let car_class = c.read_i32::<LittleEndian>()?;
     let car_pi = c.read_i32::<LittleEndian>()?;
@@ -106,7 +106,7 @@ pub fn parse(buf: &[u8]) -> Result<TelemetryPacket, ParseError> {
     let _num_cylinders = c.read_i32::<LittleEndian>()?;
 
     // Dash-only fields (bytes 232–310)
-    skip(&mut c, 3)?; // Position X/Y/Z
+    skip_f32_fields(&mut c, 3)?; // Position X/Y/Z
     let speed_ms = c.read_f32::<LittleEndian>()?;
     let power = c.read_f32::<LittleEndian>()?;
     let torque = c.read_f32::<LittleEndian>()?;
@@ -191,8 +191,9 @@ pub fn parse(buf: &[u8]) -> Result<TelemetryPacket, ParseError> {
     })
 }
 
-fn skip(c: &mut Cursor<&[u8]>, count: usize) -> std::io::Result<()> {
-    let mut sink = vec![0u8; count * 4];
+/// Skips `field_count` f32 fields (4 bytes each) from the cursor.
+fn skip_f32_fields(c: &mut Cursor<&[u8]>, field_count: usize) -> std::io::Result<()> {
+    let mut sink = vec![0u8; field_count * 4];
     c.read_exact(&mut sink)
 }
 
@@ -250,5 +251,16 @@ mod tests {
         buf[0..4].copy_from_slice(&1i32.to_le_bytes());
         let pkt = parse(&buf).unwrap();
         assert!(pkt.is_race_on);
+    }
+
+    #[test]
+    fn partial_tire_wear_fl_only() {
+        let mut buf = zero_packet(315);
+        buf[311..315].copy_from_slice(&0.50f32.to_le_bytes());
+        let pkt = parse(&buf).unwrap();
+        assert!((pkt.tire_wear_fl.unwrap() - 0.50).abs() < 0.001);
+        assert!(pkt.tire_wear_fr.is_none());
+        assert!(pkt.tire_wear_rl.is_none());
+        assert!(pkt.tire_wear_rr.is_none());
     }
 }
