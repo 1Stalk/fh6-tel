@@ -56,6 +56,9 @@ jobs:
           git tag "v${{ inputs.version }}"
           git push origin HEAD --tags
 
+      - name: Set up MSVC linker
+        uses: ilammy/msvc-dev-cmd@v1
+
       - name: Install frontend dependencies
         run: npm ci
 
