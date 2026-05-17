@@ -1,6 +1,6 @@
 {
   "productName": "FH6 Telemetry",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "identifier": "com.github.banhammer.fh6-tel",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -35,7 +35,10 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis", "msi"],
+    "targets": [
+      "nsis",
+      "msi"
+    ],
     "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
