@@ -58,15 +58,25 @@ jobs:
           git tag "v${{ inputs.version }}" 2>/dev/null || echo "Tag already exists locally"
           git push origin "v${{ inputs.version }}" 2>/dev/null || echo "Tag already exists on remote"
 
-      - name: Add MSVC linker to PATH
+      - name: Configure MSVC linker
         shell: pwsh
         run: |
           $vswhere = "C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe"
-          $vsPath = & $vswhere -latest -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
-          $version = (Get-Content "$vsPath\VC\Auxiliary\Build\Microsoft.VCToolsVersion.default.txt").Trim()
-          $linkerDir = "$vsPath\VC\Tools\MSVC\$version\bin\Hostx64\x64"
-          Write-Host "MSVC linker dir: $linkerDir"
-          Add-Content $env:GITHUB_PATH $linkerDir
+          $paths = & $vswhere -all -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          $link = $null
+          foreach ($vsPath in $paths -split "`n") {
+            $vsPath = $vsPath.Trim()
+            $versionFile = "$vsPath\VC\Auxiliary\Build\Microsoft.VCToolsVersion.default.txt"
+            if (Test-Path $versionFile) {
+              $ver = (Get-Content $versionFile -Raw).Trim()
+              $candidate = "$vsPath\VC\Tools\MSVC\$ver\bin\Hostx64\x64\link.exe"
+              if (Test-Path $candidate) { $link = $candidate; break }
+            }
+          }
+          if (-not $link) { Write-Error "No working link.exe found"; exit 1 }
+          Write-Host "Linker: $link"
+          $escaped = $link.Replace('\', '/')
+          Add-Content "$HOME\.cargo\config.toml" "[target.x86_64-pc-windows-msvc]`nlinker = `"$escaped`""
 
       - name: Install frontend dependencies
         run: npm ci
