@@ -19,7 +19,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: lts/*
           cache: npm
 
       - name: Set up Rust
@@ -28,7 +28,7 @@ jobs:
       - name: Cache Rust build artifacts
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: src-tauri
+          workspaces: './src-tauri -> target'
 
       - name: Bump version and tag
         shell: bash
@@ -57,26 +57,6 @@ jobs:
           fi
           git tag "v${{ inputs.version }}" 2>/dev/null || echo "Tag already exists locally"
           git push origin "v${{ inputs.version }}" 2>/dev/null || echo "Tag already exists on remote"
-
-      - name: Configure MSVC linker
-        shell: pwsh
-        run: |
-          $vswhere = "C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe"
-          $paths = & $vswhere -all -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
-          $link = $null
-          foreach ($vsPath in $paths -split "`n") {
-            $vsPath = $vsPath.Trim()
-            $versionFile = "$vsPath\VC\Auxiliary\Build\Microsoft.VCToolsVersion.default.txt"
-            if (Test-Path $versionFile) {
-              $ver = (Get-Content $versionFile -Raw).Trim()
-              $candidate = "$vsPath\VC\Tools\MSVC\$ver\bin\Hostx64\x64\link.exe"
-              if (Test-Path $candidate) { $link = $candidate; break }
-            }
-          }
-          if (-not $link) { Write-Error "No working link.exe found"; exit 1 }
-          Write-Host "Linker: $link"
-          $escaped = $link.Replace('\', '/')
-          Add-Content "$HOME\.cargo\config.toml" "[target.x86_64-pc-windows-msvc]`nlinker = `"$escaped`""
 
       - name: Install frontend dependencies
         run: npm ci
