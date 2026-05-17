@@ -58,8 +58,15 @@ jobs:
           git tag "v${{ inputs.version }}" 2>/dev/null || echo "Tag already exists locally"
           git push origin "v${{ inputs.version }}" 2>/dev/null || echo "Tag already exists on remote"
 
-      - name: Set up MSVC linker
-        uses: ilammy/msvc-dev-cmd@v1
+      - name: Add MSVC linker to PATH
+        shell: pwsh
+        run: |
+          $vswhere = "C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vsPath = & $vswhere -latest -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          $version = (Get-Content "$vsPath\VC\Auxiliary\Build\Microsoft.VCToolsVersion.default.txt").Trim()
+          $linkerDir = "$vsPath\VC\Tools\MSVC\$version\bin\Hostx64\x64"
+          Write-Host "MSVC linker dir: $linkerDir"
+          Add-Content $env:GITHUB_PATH $linkerDir
 
       - name: Install frontend dependencies
         run: npm ci
