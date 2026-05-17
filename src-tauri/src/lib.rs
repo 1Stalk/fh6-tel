@@ -32,6 +32,7 @@ pub fn run() {
             commands::delete_session,
             commands::get_settings,
             commands::save_settings,
+            commands::get_session_car_ordinals,
         ])
         .setup(move |app| {
             let handle = app.handle().clone();

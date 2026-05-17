@@ -31,6 +31,14 @@ pub fn get_settings(state: State<AppState>) -> settings::Settings {
     state.settings.lock().unwrap().clone()
 }
 
+/// Returns all distinct car ordinals seen in sessions as a JSON object mapping
+/// ordinal → null (unknown). The frontend overlays known names on top of this.
+#[tauri::command]
+pub fn get_session_car_ordinals(state: State<AppState>) -> Result<Vec<i32>, String> {
+    let conn = state.db.lock().unwrap();
+    db::get_distinct_car_ordinals(&conn).map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub fn save_settings(
     state: State<AppState>,

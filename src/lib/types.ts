@@ -43,6 +43,14 @@ export interface TelemetryPacket {
   clutch: number;
   handbrake: number;
   gear: number;
+  steer: number;
+  yaw: number;
+  pitch: number;
+  roll: number;
+  suspensionFl: number;
+  suspensionFr: number;
+  suspensionRl: number;
+  suspensionRr: number;
   tireWearFl: number | null;
   tireWearFr: number | null;
   tireWearRl: number | null;
@@ -67,6 +75,7 @@ export interface AppSettings {
   tireTempOptimal: number;
   tireTempHot: number;
   autoRecord: boolean;
+  theme: 'dark' | 'cobalt2' | 'purple';
 }
 
 export type DrivetrainLabel = 'FWD' | 'RWD' | 'AWD';

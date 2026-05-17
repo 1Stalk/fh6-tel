@@ -11,6 +11,12 @@ pub struct Settings {
     pub tire_temp_optimal: f32,
     pub tire_temp_hot: f32,
     pub auto_record: bool,
+    #[serde(default = "Settings::default_theme")]
+    pub theme: String,
+}
+
+impl Settings {
+    fn default_theme() -> String { "dark".to_string() }
 }
 
 impl Default for Settings {
@@ -22,6 +28,7 @@ impl Default for Settings {
             tire_temp_optimal: 85.0,
             tire_temp_hot: 110.0,
             auto_record: true,
+            theme: Self::default_theme(),
         }
     }
 }

@@ -5,15 +5,25 @@ import type { TelemetryPacket } from '$lib/types';
 export const packet = writable<TelemetryPacket | null>(null);
 export const isConnected = writable(false);
 
-export const speedMph = derived(packet, ($p) =>
+// Freezes at last isRaceOn=true packet so pause menu doesn't clear the display
+let _frozen: TelemetryPacket | null = null;
+export const displayPacket = derived(packet, ($p): TelemetryPacket | null => {
+  if ($p !== null && $p.isRaceOn) {
+    _frozen = $p;
+    return $p;
+  }
+  return _frozen ?? $p;
+});
+
+export const speedMph = derived(displayPacket, ($p) =>
   $p ? $p.speedMs * 2.23694 : 0
 );
 
-export const speedKph = derived(packet, ($p) =>
+export const speedKph = derived(displayPacket, ($p) =>
   $p ? $p.speedMs * 3.6 : 0
 );
 
-export const rpmPercent = derived(packet, ($p) => {
+export const rpmPercent = derived(displayPacket, ($p) => {
   if (!$p || $p.engineMaxRpm === 0) return 0;
   return ($p.currentEngineRpm / $p.engineMaxRpm) * 100;
 });

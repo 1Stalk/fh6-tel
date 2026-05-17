@@ -43,18 +43,47 @@ pub fn open_session(
     conn: &Connection,
     started_at: i64,
     car_ordinal: i32,
+    car_class: i32,
     car_pi: i32,
 ) -> Result<i64> {
     conn.execute(
-        "INSERT INTO sessions (started_at, car_ordinal, car_pi) VALUES (?1, ?2, ?3)",
-        rusqlite::params![started_at, car_ordinal, car_pi],
+        "INSERT INTO sessions (started_at, car_ordinal, car_class, car_pi) VALUES (?1, ?2, ?3, ?4)",
+        rusqlite::params![started_at, car_ordinal, car_class, car_pi],
     )?;
     Ok(conn.last_insert_rowid())
 }
 
-pub fn close_session(conn: &Connection, id: i64, ended_at: i64, best_lap: f32) -> Result<()> {
+/// Sets car metadata on a session that still has car_ordinal=0.
+/// Called every packet so the first non-zero ordinal wins, handling the case
+/// where the opening packet arrives before the game has populated car data.
+pub fn update_session_car_if_unknown(
+    conn: &Connection,
+    id: i64,
+    car_ordinal: i32,
+    car_class: i32,
+    car_pi: i32,
+) -> Result<()> {
     conn.execute(
-        "UPDATE sessions SET ended_at=?1, best_lap=?2 WHERE id=?3",
+        "UPDATE sessions SET car_ordinal=?1, car_class=?2, car_pi=?3 WHERE id=?4 AND car_ordinal=0",
+        rusqlite::params![car_ordinal, car_class, car_pi, id],
+    )?;
+    Ok(())
+}
+
+pub fn reopen_session(conn: &Connection, id: i64) -> Result<()> {
+    conn.execute(
+        "UPDATE sessions SET ended_at = NULL WHERE id=?1",
+        [id],
+    )?;
+    Ok(())
+}
+
+pub fn close_session(conn: &Connection, id: i64, ended_at: i64, best_lap: f32) -> Result<()> {
+    // Use MIN so a worse post-rewind lap never overwrites a better pre-rewind one.
+    conn.execute(
+        "UPDATE sessions SET ended_at=?1,
+         best_lap = CASE WHEN ?2 > 0.0 AND (best_lap IS NULL OR ?2 < best_lap) THEN ?2 ELSE best_lap END
+         WHERE id=?3",
         rusqlite::params![ended_at, best_lap, id],
     )?;
     Ok(())
@@ -123,6 +152,14 @@ pub fn delete_session(conn: &Connection, id: i64) -> Result<()> {
     Ok(())
 }
 
+pub fn get_distinct_car_ordinals(conn: &Connection) -> Result<Vec<i32>> {
+    let mut stmt = conn.prepare(
+        "SELECT DISTINCT car_ordinal FROM sessions WHERE car_ordinal != 0 ORDER BY car_ordinal",
+    )?;
+    let rows = stmt.query_map([], |r| r.get::<_, i32>(0))?;
+    rows.collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -149,7 +186,7 @@ mod tests {
     #[test]
     fn open_and_close_session() {
         let conn = in_memory();
-        let id = open_session(&conn, 12345, 3, 900).unwrap();
+        let id = open_session(&conn, 12345, 3, 5, 900).unwrap();
         assert!(id > 0);
         close_session(&conn, id, 1000, 78.5).unwrap();
         let ended: Option<i64> = conn
@@ -159,9 +196,63 @@ mod tests {
     }
 
     #[test]
+    fn reopen_clears_ended_at() {
+        let conn = in_memory();
+        let id = open_session(&conn, 12345, 3, 5, 900).unwrap();
+        close_session(&conn, id, 1000, 78.5).unwrap();
+        reopen_session(&conn, id).unwrap();
+        let ended: Option<i64> = conn
+            .query_row("SELECT ended_at FROM sessions WHERE id=?1", [id], |r| r.get(0))
+            .unwrap();
+        assert!(ended.is_none());
+    }
+
+    #[test]
+    fn close_preserves_better_best_lap() {
+        let conn = in_memory();
+        let id = open_session(&conn, 0, 0, 0, 0).unwrap();
+        close_session(&conn, id, 100, 65.5).unwrap();
+        reopen_session(&conn, id).unwrap();
+        // Worse lap after rewind — existing best must be kept
+        close_session(&conn, id, 200, 70.0).unwrap();
+        let best: Option<f32> = conn
+            .query_row("SELECT best_lap FROM sessions WHERE id=?1", [id], |r| r.get(0))
+            .unwrap();
+        assert_eq!(best, Some(65.5));
+    }
+
+    #[test]
+    fn close_updates_to_better_best_lap() {
+        let conn = in_memory();
+        let id = open_session(&conn, 0, 0, 0, 0).unwrap();
+        close_session(&conn, id, 100, 65.5).unwrap();
+        reopen_session(&conn, id).unwrap();
+        // Better lap after rewind — should update
+        close_session(&conn, id, 200, 60.0).unwrap();
+        let best: Option<f32> = conn
+            .query_row("SELECT best_lap FROM sessions WHERE id=?1", [id], |r| r.get(0))
+            .unwrap();
+        assert_eq!(best, Some(60.0));
+    }
+
+    #[test]
+    fn close_with_no_lap_keeps_existing_best() {
+        let conn = in_memory();
+        let id = open_session(&conn, 0, 0, 0, 0).unwrap();
+        close_session(&conn, id, 100, 65.5).unwrap();
+        reopen_session(&conn, id).unwrap();
+        // -1.0 means no lap was recorded post-rewind
+        close_session(&conn, id, 200, -1.0).unwrap();
+        let best: Option<f32> = conn
+            .query_row("SELECT best_lap FROM sessions WHERE id=?1", [id], |r| r.get(0))
+            .unwrap();
+        assert_eq!(best, Some(65.5));
+    }
+
+    #[test]
     fn insert_and_count_packets() {
         let conn = in_memory();
-        let id = open_session(&conn, 0, 0, 0).unwrap();
+        let id = open_session(&conn, 0, 0, 0, 0).unwrap();
         let blob = vec![0u8; 311];
         insert_packet(&conn, id, 1000, &blob).unwrap();
         insert_packet(&conn, id, 2000, &blob).unwrap();

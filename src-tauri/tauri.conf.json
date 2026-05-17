@@ -1,7 +1,7 @@
 {
   "productName": "FH6 Telemetry",
   "version": "0.1.0",
-  "identifier": "ai.survyo.fh6-tel",
+  "identifier": "com.github.banhammer.fh6-tel",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -22,7 +22,7 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src ipc: http://ipc.localhost"
     }
   },
   "bundle": {

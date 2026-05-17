@@ -118,31 +118,31 @@
 <style>
   .drawer {
     position: fixed; right: 0; top: 0; bottom: 0; width: 420px;
-    background: #0f172a; border-left: 1px solid #1e293b;
+    background: var(--bg-panel); border-left: 1px solid var(--bd-dim);
     display: flex; flex-direction: column; z-index: 50;
     box-shadow: -4px 0 24px rgba(0,0,0,0.5);
   }
   .drawer-header {
     display: flex; justify-content: space-between; align-items: center;
-    padding: 1rem; border-bottom: 1px solid #1e293b;
+    padding: 1rem; border-bottom: 1px solid var(--bd-dim);
   }
-  h3 { margin: 0; color: #f9fafb; }
-  .drawer-header button { background: none; border: none; color: #6b7280; font-size: 1.1rem; cursor: pointer; }
+  h3 { margin: 0; color: var(--tx-hi); }
+  .drawer-header button { background: none; border: none; color: var(--tx-dim); font-size: 1.1rem; cursor: pointer; }
   .drawer-body { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 1rem; padding: 0.5rem; }
   .session-list { display: flex; flex-direction: column; gap: 0.3rem; }
   .session-row {
     display: flex; align-items: center; justify-content: space-between;
     padding: 0.6rem 0.75rem; border-radius: 6px; cursor: pointer;
-    border: 1px solid transparent; background: #1e293b;
+    border: 1px solid transparent; background: var(--bg-elevated);
   }
-  .session-row:hover, .session-row.selected { border-color: #3b82f6; }
+  .session-row:hover, .session-row.selected { border-color: var(--ac); }
   .session-info { display: flex; flex-direction: column; gap: 0.1rem; }
-  .session-car { font-size: 0.85rem; font-weight: 600; color: #e5e7eb; }
-  .session-date { font-size: 0.7rem; color: #6b7280; }
+  .session-car { font-size: 0.85rem; font-weight: 600; color: var(--tx-mid); }
+  .session-date { font-size: 0.7rem; color: var(--tx-dim); }
   .session-best { font-size: 0.75rem; color: #a855f7; font-weight: 700; }
-  .delete-btn { background: none; border: none; cursor: pointer; font-size: 0.9rem; color: #6b7280; }
+  .delete-btn { background: none; border: none; cursor: pointer; font-size: 0.9rem; color: var(--tx-dim); }
   .delete-btn:hover { color: #ef4444; }
-  .empty { color: #4b5563; font-size: 0.85rem; text-align: center; padding: 2rem; }
-  .chart-area { min-height: 220px; border-radius: 6px; overflow: hidden; background: #111827; }
+  .empty { color: var(--tx-xdim); font-size: 0.85rem; text-align: center; padding: 2rem; }
+  .chart-area { min-height: 220px; border-radius: 6px; overflow: hidden; background: var(--bg-card); }
   :global(.uplot) { background: transparent !important; }
 </style>
