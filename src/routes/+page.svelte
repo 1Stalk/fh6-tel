@@ -1,6 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { listen } from '@tauri-apps/api/event';
+  import { check as checkUpdate } from '@tauri-apps/plugin-updater';
+  import { relaunch } from '@tauri-apps/plugin-process';
   import { startTelemetryListener } from '$lib/stores/telemetry';
   import { loadSettings, settings } from '$lib/stores/sessions';
   import TopBar from '$lib/components/TopBar.svelte';
@@ -15,6 +17,8 @@
   let showSettings = $state(false);
   let toasts = $state<{ id: number; message: string }[]>([]);
   let nextToastId = 0;
+  let pendingUpdate = $state<{ version: string; install: () => Promise<void> } | null>(null);
+  let updateInstalling = $state(false);
 
   function addToast(message: string) {
     const id = nextToastId++;
@@ -27,6 +31,21 @@
     await startTelemetryListener();
     await listen('session_error', (e) => addToast(String(e.payload)));
     await listen('udp_bind_failed', (e) => addToast(String(e.payload)));
+    try {
+      const update = await checkUpdate();
+      if (update) {
+        pendingUpdate = {
+          version: update.version,
+          install: async () => {
+            updateInstalling = true;
+            await update.downloadAndInstall();
+            await relaunch();
+          },
+        };
+      }
+    } catch {
+      // Offline or update endpoint unreachable — ignore
+    }
   });
 
   let s = $derived($settings);
@@ -37,6 +56,16 @@
     document.documentElement.setAttribute('data-theme', theme);
   });
 </script>
+
+{#if pendingUpdate}
+  <div class="update-bar">
+    <span>Update v{pendingUpdate.version} available</span>
+    <button class="update-install" disabled={updateInstalling} onclick={() => pendingUpdate?.install()}>
+      {updateInstalling ? 'Installing…' : 'Install & restart'}
+    </button>
+    <button class="update-dismiss" onclick={() => (pendingUpdate = null)}>✕</button>
+  </div>
+{/if}
 
 <div class="dashboard">
   <TopBar
@@ -178,6 +207,25 @@
   .center-area { background: var(--bg-body); overflow: hidden; min-width: 0; }
   .right-strip { border-left: 1px solid var(--bd-subtle); background: var(--bg-body); overflow: hidden; min-width: 0; }
   .lap-bar { height: clamp(2.5rem, 5.5vh, 4rem); flex-shrink: 0; }
+
+  .update-bar {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 300;
+    display: flex; align-items: center; gap: 0.75rem;
+    padding: 0.35rem 1rem;
+    background: var(--ac-dim); border-bottom: 1px solid var(--ac);
+    font-size: 0.78rem; color: var(--tx-mid);
+  }
+  .update-bar span { flex: 1; }
+  .update-install {
+    background: var(--ac); color: #fff; border: none; border-radius: 4px;
+    padding: 0.2rem 0.65rem; font-size: 0.75rem; cursor: pointer;
+  }
+  .update-install:disabled { opacity: 0.6; cursor: default; }
+  .update-dismiss {
+    background: none; border: none; color: var(--tx-dim);
+    font-size: 0.85rem; cursor: pointer; padding: 0 0.25rem;
+  }
+  .update-dismiss:hover { color: var(--tx-hi); }
 
   .toast-stack {
     position: fixed; bottom: 4rem; left: 50%; transform: translateX(-50%);
