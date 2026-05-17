@@ -58,6 +58,18 @@ jobs:
           git tag "v${{ inputs.version }}" 2>/dev/null || echo "Tag already exists locally"
           git push origin "v${{ inputs.version }}" 2>/dev/null || echo "Tag already exists on remote"
 
+      - name: Configure MSVC linker
+        shell: pwsh
+        run: |
+          $vsPath = "C:\Program Files\Microsoft Visual Studio\2022\Enterprise"
+          $ver = (Get-Content "$vsPath\VC\Auxiliary\Build\Microsoft.VCToolsVersion.default.txt").Trim()
+          $link = "$vsPath\VC\Tools\MSVC\$ver\bin\Hostx64\x64\link.exe"
+          Write-Host "Linker: $link (exists=$(Test-Path $link))"
+          $escaped = $link.Replace('\', '/')
+          New-Item -Force -ItemType Directory src-tauri\.cargo | Out-Null
+          "[target.x86_64-pc-windows-msvc]`nlinker = `"$escaped`"" | Set-Content src-tauri\.cargo\config.toml
+          Get-Content src-tauri\.cargo\config.toml
+
       - name: Install frontend dependencies
         run: npm ci
 
