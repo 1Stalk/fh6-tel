@@ -8,6 +8,8 @@
 
 Real-time telemetry dashboard for Forza Horizon 6. Displays speed, RPM, heading, attitude, tire temps, driver inputs, and lap times. Records sessions to SQLite for later review.
 
+<img width="2157" height="1347" alt="image" src="https://github.com/user-attachments/assets/147e41ca-de56-4dcf-8d05-261685ca3ed3" />
+
 ## Install
 
 Download the latest `.exe` installer from [Releases](https://github.com/TheBanHammer/fh6-tel/releases/latest) and run it. No additional software required — WebView2 is pre-installed on Windows 10/11.
