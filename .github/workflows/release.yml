@@ -30,31 +30,33 @@ jobs:
         with:
           workspaces: src-tauri
 
-      - name: Bump version in package.json and tauri.conf.json
+      - name: Bump version and tag
         shell: bash
         run: |
-          node -e "
-            const fs = require('fs');
-            const p = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-            p.version = '${{ inputs.version }}';
-            fs.writeFileSync('package.json', JSON.stringify(p, null, 2) + '\n');
-          "
-          node -e "
-            const fs = require('fs');
-            const p = JSON.parse(fs.readFileSync('src-tauri/tauri.conf.json', 'utf8'));
-            p.version = '${{ inputs.version }}';
-            fs.writeFileSync('src-tauri/tauri.conf.json', JSON.stringify(p, null, 2) + '\n');
-          "
-
-      - name: Commit version bump and push tag
-        shell: bash
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add package.json src-tauri/tauri.conf.json
-          git commit -m "chore: release v${{ inputs.version }}"
-          git tag "v${{ inputs.version }}"
-          git push origin HEAD --tags
+          CURRENT=$(node -p "require('./package.json').version")
+          if [ "$CURRENT" != "${{ inputs.version }}" ]; then
+            node -e "
+              const fs = require('fs');
+              const p = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+              p.version = '${{ inputs.version }}';
+              fs.writeFileSync('package.json', JSON.stringify(p, null, 2) + '\n');
+            "
+            node -e "
+              const fs = require('fs');
+              const p = JSON.parse(fs.readFileSync('src-tauri/tauri.conf.json', 'utf8'));
+              p.version = '${{ inputs.version }}';
+              fs.writeFileSync('src-tauri/tauri.conf.json', JSON.stringify(p, null, 2) + '\n');
+            "
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add package.json src-tauri/tauri.conf.json
+            git commit -m "chore: release v${{ inputs.version }}"
+            git push origin HEAD
+          else
+            echo "Version already ${{ inputs.version }}, skipping bump commit"
+          fi
+          git tag "v${{ inputs.version }}" 2>/dev/null || echo "Tag already exists locally"
+          git push origin "v${{ inputs.version }}" 2>/dev/null || echo "Tag already exists on remote"
 
       - name: Set up MSVC linker
         uses: ilammy/msvc-dev-cmd@v1
