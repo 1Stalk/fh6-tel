@@ -1,0 +1,35 @@
+name: 'Set up build environment'
+description: 'Node + Rust toolchains, build caches, MSVC linker config, and frontend dependencies'
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: lts/*
+        cache: npm
+
+    - name: Set up Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Cache Rust build artifacts
+      uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: './src-tauri -> target'
+
+    - name: Configure MSVC linker
+      shell: pwsh
+      run: |
+        $vsPath = "C:\Program Files\Microsoft Visual Studio\2022\Enterprise"
+        $ver = (Get-Content "$vsPath\VC\Auxiliary\Build\Microsoft.VCToolsVersion.default.txt").Trim()
+        $link = "$vsPath\VC\Tools\MSVC\$ver\bin\Hostx64\x64\link.exe"
+        Write-Host "Linker: $link (exists=$(Test-Path $link))"
+        $escaped = $link.Replace('\', '/')
+        New-Item -Force -ItemType Directory src-tauri\.cargo | Out-Null
+        "[target.x86_64-pc-windows-msvc]`nlinker = `"$escaped`"" | Set-Content src-tauri\.cargo\config.toml
+        Get-Content src-tauri\.cargo\config.toml
+
+    - name: Install frontend dependencies
+      shell: bash
+      run: npm ci

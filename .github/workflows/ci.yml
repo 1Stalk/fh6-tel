@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup-build-env
+
+      - name: Type-check frontend
+        run: npm run check
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Run backend tests
+        working-directory: src-tauri
+        run: cargo test
+
+      - name: Compile backend (release)
+        working-directory: src-tauri
+        run: cargo build --release
