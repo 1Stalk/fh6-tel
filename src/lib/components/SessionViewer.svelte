@@ -450,6 +450,7 @@
   .content {
     flex: 1;
     overflow-y: auto;
+    overflow-x: hidden;
     padding: 1rem;
   }
   .status {

@@ -218,6 +218,25 @@
     width: 100vw;
   }
 
+  /* App-wide slim themed scrollbars (WebView2/Chromium + Firefox) */
+  :global(*) {
+    scrollbar-width: thin;
+    scrollbar-color: var(--bd-strong) transparent;
+  }
+  :global(*::-webkit-scrollbar) { width: 9px; height: 9px; }
+  :global(*::-webkit-scrollbar-track) { background: transparent; }
+  :global(*::-webkit-scrollbar-thumb) {
+    background: var(--bd-strong);
+    border-radius: 5px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  :global(*::-webkit-scrollbar-thumb:hover) {
+    background: var(--tx-ghost);
+    background-clip: padding-box;
+  }
+  :global(*::-webkit-scrollbar-corner) { background: transparent; }
+
   .dashboard {
     display: flex;
     flex-direction: column;
