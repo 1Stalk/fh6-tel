@@ -6,7 +6,7 @@
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows-0078d4?logo=windows)](https://github.com/TheBanHammer/fh6-tel/releases/latest)
 
-Real-time telemetry dashboard for Forza Horizon 6. Displays speed, RPM, heading, attitude, tire temps, driver inputs, and lap times. Records sessions to SQLite for later review.
+Real-time telemetry dashboard for Forza Horizon 6. Displays speed, RPM, heading, attitude, tire temps, driver inputs, and lap times. Auto-records timed sessions to SQLite with a full replay/analysis viewer and a calibrated track map.
 
 ### Realtime Dashboard
 <img width="1919" height="1054" alt="image" src="https://github.com/user-attachments/assets/2e4e2367-c6cc-43be-a97a-4565d0f057c0" />
@@ -57,8 +57,8 @@ The dashboard shows a green dot in the top-left when packets are received.
 └─────────────────────────────────────────────────────────┘
 ```
 
-Click **⚙** to open Settings (port, units, theme, tire thresholds).  
-Click **⏱** to open the Session Drawer (past sessions + uPlot chart).
+Click **⚙** to open Settings (port, units, theme, tire thresholds, track map).  
+Click **⏱** to open the Session Drawer; click a session to open the replay/analysis viewer.
 
 ## Themes
 
@@ -72,9 +72,23 @@ Three built-in themes selectable from Settings:
 
 ## Session Recording
 
-Sessions are recorded automatically when the game signals the car is active in a race. Click **⏱** to view past sessions and replay speed, throttle, brake, and RPM as a chart. Sessions survive in-race rewinds — the best pre-rewind lap time is always preserved.
+Sessions are recorded automatically whenever a lap is being timed — races, Rivals, and **Time Trial** (which reports no race position, so recording keys off the lap clock). Free-roam is not recorded.
+
+Each session captures every telemetry packet plus per-lap times. The lap in progress when a session ends is finalised and counts toward the best lap, so a Time Trial hotlap is never lost. Sessions survive in-race **rewinds**: a rewind reopens and stitches the existing session (in races *and* Time Trial) rather than starting a new one, and the best pre-rewind lap time is always preserved.
+
+From the Session Drawer you can bookmark, rename, delete, or **Clear all** sessions. Opening a session shows:
+
+- **Analysis** — grouped charts (driver inputs, speed/RPM, G-forces, tire temps) with vertical lap-boundary markers and per-lap times
+- **Map** — the driven racing line on the track map
+- **Replay** — play the session back on the live dashboard via a docked timeline (scrub, play/pause, 0.5×–4× speed)
 
 Data is stored in `%LOCALAPPDATA%\fh6-tel\sessions.db`.
+
+## Track Map
+
+A toggleable track map (right strip on the dashboard, plus the viewer's Map tab) draws the driven line over Forza Horizon 6: Japan map tiles, with a heading arrow for the car. It follows the car at a sensible zoom while free-roaming, and frames the whole track (static, pan/zoom-bounded) during a recording or replay. Tiles can be zoomed past their native resolution.
+
+Calibrate world coordinates to the map via **Settings → Track Map → Calibrate map…**: drive to two landmarks, capture each, and click them on the map. View, zoom, and a custom tile source can be overridden in Settings.
 
 ## Building from Source
 
