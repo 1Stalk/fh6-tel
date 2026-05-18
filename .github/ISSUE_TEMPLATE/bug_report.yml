@@ -1,0 +1,68 @@
+name: Bug report
+description: Something isn't working correctly
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for taking the time to report a bug. Please fill in the details below.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug and what you expected instead.
+      placeholder: When I ..., the dashboard ... but I expected ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open the app
+        2. Start a ... event
+        3. ...
+    validations:
+      required: true
+
+  - type: input
+    id: app-version
+    attributes:
+      label: App version
+      description: Shown in the updater bar / installer, or the GitHub release tag.
+      placeholder: e.g. v1.0.1
+    validations:
+      required: true
+
+  - type: input
+    id: windows-version
+    attributes:
+      label: Windows version
+      placeholder: e.g. Windows 11 23H2
+    validations:
+      required: true
+
+  - type: dropdown
+    id: context
+    attributes:
+      label: Game context
+      description: What were you doing in Forza Horizon 6?
+      options:
+        - Free roam
+        - Race
+        - Rivals
+        - Time Trial
+        - Replay / reviewing a recorded session
+        - Other / not in-game
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / screenshots
+      description: Attach screenshots and any error toast text. Optional.
+    validations:
+      required: false
