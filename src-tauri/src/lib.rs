@@ -31,10 +31,13 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::get_sessions,
             commands::get_session_packets,
+            commands::get_session_laps,
             commands::delete_session,
+            commands::clear_all_sessions,
+            commands::rename_session,
+            commands::set_session_bookmark,
             commands::get_settings,
             commands::save_settings,
-            commands::get_session_car_ordinals,
         ])
         .setup(move |app| {
             let handle = app.handle().clone();

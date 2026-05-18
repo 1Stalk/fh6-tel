@@ -1,24 +1,13 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
-  import { sessions, loadSessions, loadSessionPackets, deleteSession } from '$lib/stores/sessions';
+  import { onMount } from 'svelte';
+  import { sessions, loadSessions, deleteSession, clearAllSessions, setSessionBookmark } from '$lib/stores/sessions';
   import { carName } from '$lib/car-name';
-  import type { TelemetryPacket, SessionRow } from '$lib/types';
-  import uPlot from 'uplot';
-  import 'uplot/dist/uPlot.min.css';
+  import type { SessionRow } from '$lib/types';
 
-  let { onClose, useMph = true }: { onClose: () => void; useMph: boolean } = $props();
+  let { onClose, onOpen }: { onClose: () => void; onOpen: (s: SessionRow) => void } =
+    $props();
 
-  let selectedSession = $state<SessionRow | null>(null);
-  let chartEl = $state<HTMLDivElement | null>(null);
-  let plot: uPlot | null = null;
-
-  onMount(async () => {
-    await loadSessions();
-  });
-
-  onDestroy(() => {
-    plot?.destroy();
-  });
+  onMount(loadSessions);
 
   function formatTime(seconds: number) {
     if (!seconds || seconds <= 0) return '—';
@@ -31,59 +20,40 @@
     return new Date(ms).toLocaleString();
   }
 
-  async function selectSession(session: SessionRow) {
-    selectedSession = session;
-    plot?.destroy();
-    plot = null;
-
-    const packets: TelemetryPacket[] = await loadSessionPackets(session.id);
-    if (packets.length === 0 || !chartEl) return;
-
-    const speedFactor = useMph ? 2.23694 : 3.6;
-    const speedLabel = useMph ? 'Speed (mph)' : 'Speed (kph)';
-    const times = packets.map((_, i) => i / 60);
-    const speeds = packets.map(p => p.speedMs * speedFactor);
-    const throttles = packets.map(p => (p.throttle / 255) * 100);
-    const brakes = packets.map(p => (p.brake / 255) * 100);
-    const rpms = packets.map(p =>
-      p.engineMaxRpm > 0 ? (p.currentEngineRpm / p.engineMaxRpm) * 100 : 0
-    );
-
-    const opts: uPlot.Options = {
-      width: chartEl.clientWidth || 380,
-      height: 200,
-      series: [
-        {},
-        { label: speedLabel, stroke: '#3b82f6', width: 1.5 },
-        { label: 'Throttle %', stroke: '#22c55e', width: 1 },
-        { label: 'Brake %', stroke: '#ef4444', width: 1 },
-        { label: 'RPM %', stroke: '#a855f7', width: 1 },
-      ],
-      axes: [
-        { stroke: '#6b7280', grid: { stroke: '#1f2937' } },
-        { stroke: '#6b7280', grid: { stroke: '#1f2937' } },
-      ],
-    };
-
-    plot = new uPlot(opts, [times, speeds, throttles, brakes, rpms], chartEl);
-  }
-
   async function handleDelete(session: SessionRow, e: MouseEvent) {
     e.stopPropagation();
-    if (!confirm(`Delete session from ${formatDate(session.startedAt)}?`)) return;
+    const label = session.name ?? formatDate(session.startedAt);
+    if (!confirm(`Delete session "${label}"?`)) return;
     await deleteSession(session.id);
-    if (selectedSession?.id === session.id) {
-      selectedSession = null;
-      plot?.destroy();
-      plot = null;
-    }
+  }
+
+  async function toggleBookmark(session: SessionRow, e: MouseEvent) {
+    e.stopPropagation();
+    await setSessionBookmark(session.id, !session.bookmarked);
+  }
+
+  async function handleClearAll() {
+    const n = $sessions.length;
+    if (n === 0) return;
+    if (!confirm(`Delete ALL ${n} session${n === 1 ? '' : 's'}? This cannot be undone.`))
+      return;
+    await clearAllSessions();
   }
 </script>
 
 <div class="drawer">
   <div class="drawer-header">
     <h3>Sessions</h3>
-    <button onclick={onClose}>✕</button>
+    <div class="header-actions">
+      <button
+        class="clear-all"
+        disabled={$sessions.length === 0}
+        onclick={handleClearAll}
+      >
+        Clear all
+      </button>
+      <button class="close" onclick={onClose}>✕</button>
+    </div>
   </div>
 
   <div class="drawer-body">
@@ -91,14 +61,23 @@
       {#each $sessions as session}
         <div
           class="session-row"
-          class:selected={selectedSession?.id === session.id}
           role="button"
           tabindex="0"
-          onclick={() => selectSession(session)}
-          onkeydown={(e) => e.key === 'Enter' && selectSession(session)}
+          onclick={() => onOpen(session)}
+          onkeydown={(e) => e.key === 'Enter' && onOpen(session)}
         >
+          <button
+            class="star"
+            class:on={session.bookmarked}
+            title={session.bookmarked ? 'Remove bookmark' : 'Bookmark'}
+            onclick={(e) => toggleBookmark(session, e)}
+          >
+            {session.bookmarked ? '★' : '☆'}
+          </button>
           <div class="session-info">
-            <span class="session-car">{carName(session.carOrdinal)}</span>
+            <span class="session-name">
+              {session.name ?? carName(session.carOrdinal)}
+            </span>
             <span class="session-date">{formatDate(session.startedAt)}</span>
             <span class="session-best">Best: {formatTime(session.bestLap ?? 0)}</span>
           </div>
@@ -108,10 +87,6 @@
         <p class="empty">No sessions recorded yet.</p>
       {/each}
     </div>
-
-    {#if selectedSession}
-      <div class="chart-area" bind:this={chartEl}></div>
-    {/if}
   </div>
 </div>
 
@@ -127,22 +102,36 @@
     padding: 1rem; border-bottom: 1px solid var(--bd-dim);
   }
   h3 { margin: 0; color: var(--tx-hi); }
-  .drawer-header button { background: none; border: none; color: var(--tx-dim); font-size: 1.1rem; cursor: pointer; }
+  .header-actions { display: flex; align-items: center; gap: 0.6rem; }
+  .drawer-header .close { background: none; border: none; color: var(--tx-dim); font-size: 1.1rem; cursor: pointer; }
+  .drawer-header .close:hover { color: var(--tx-hi); }
+  .clear-all {
+    background: none; border: 1px solid var(--bd-muted); color: var(--tx-dim);
+    font-size: 0.72rem; padding: 0.25rem 0.55rem; border-radius: 4px; cursor: pointer;
+  }
+  .clear-all:hover:not(:disabled) { border-color: #ef4444; color: #ef4444; }
+  .clear-all:disabled { opacity: 0.4; cursor: default; }
   .drawer-body { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 1rem; padding: 0.5rem; }
   .session-list { display: flex; flex-direction: column; gap: 0.3rem; }
   .session-row {
-    display: flex; align-items: center; justify-content: space-between;
+    display: flex; align-items: center; gap: 0.5rem;
     padding: 0.6rem 0.75rem; border-radius: 6px; cursor: pointer;
     border: 1px solid transparent; background: var(--bg-elevated);
   }
-  .session-row:hover, .session-row.selected { border-color: var(--ac); }
-  .session-info { display: flex; flex-direction: column; gap: 0.1rem; }
-  .session-car { font-size: 0.85rem; font-weight: 600; color: var(--tx-mid); }
+  .session-row:hover { border-color: var(--ac); }
+  .star {
+    background: none; border: none; cursor: pointer;
+    font-size: 1.05rem; color: var(--tx-dim); line-height: 1; flex-shrink: 0;
+  }
+  .star.on { color: #fbbf24; }
+  .session-info { display: flex; flex-direction: column; gap: 0.1rem; flex: 1; min-width: 0; }
+  .session-name {
+    font-size: 0.85rem; font-weight: 600; color: var(--tx-mid);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
   .session-date { font-size: 0.7rem; color: var(--tx-dim); }
   .session-best { font-size: 0.75rem; color: #a855f7; font-weight: 700; }
-  .delete-btn { background: none; border: none; cursor: pointer; font-size: 0.9rem; color: var(--tx-dim); }
+  .delete-btn { background: none; border: none; cursor: pointer; font-size: 0.9rem; color: var(--tx-dim); flex-shrink: 0; }
   .delete-btn:hover { color: #ef4444; }
   .empty { color: var(--tx-xdim); font-size: 0.85rem; text-align: center; padding: 2rem; }
-  .chart-area { min-height: 220px; border-radius: 6px; overflow: hidden; background: var(--bg-card); }
-  :global(.uplot) { background: transparent !important; }
 </style>

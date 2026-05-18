@@ -13,10 +13,44 @@ pub struct Settings {
     pub auto_record: bool,
     #[serde(default = "Settings::default_theme")]
     pub theme: String,
+
+    // ── Track map (all serde-defaulted so old settings.json keeps loading) ──
+    #[serde(default)]
+    pub map_enabled: bool,
+    #[serde(default)]
+    pub map_override: bool,
+    #[serde(default)]
+    pub map_tile_url: String,
+    #[serde(default)]
+    pub map_min_zoom: i32,
+    #[serde(default = "Settings::default_map_max_zoom")]
+    pub map_max_zoom: i32,
+    #[serde(default = "Settings::default_map_tile_size")]
+    pub map_tile_size: i32,
+    /// Two calibration reference points mapping game world (X, Z) to
+    /// full-resolution map pixels (X, Y). Calibration is "unset" when A == B.
+    #[serde(default)]
+    pub map_cal_a_world: [f64; 2],
+    #[serde(default)]
+    pub map_cal_a_pix: [f64; 2],
+    #[serde(default)]
+    pub map_cal_b_world: [f64; 2],
+    #[serde(default)]
+    pub map_cal_b_pix: [f64; 2],
+    /// View zoom cap (may exceed tile native zoom — tiles upscale). 0 = preset.
+    #[serde(default)]
+    pub map_view_max_zoom: i32,
+    /// Initial camera. 0 = use preset. Center is a full-resolution pixel (X, Y).
+    #[serde(default)]
+    pub map_default_zoom: i32,
+    #[serde(default)]
+    pub map_default_center: [f64; 2],
 }
 
 impl Settings {
     fn default_theme() -> String { "dark".to_string() }
+    fn default_map_max_zoom() -> i32 { 5 }
+    fn default_map_tile_size() -> i32 { 256 }
 }
 
 impl Default for Settings {
@@ -29,6 +63,19 @@ impl Default for Settings {
             tire_temp_hot: 110.0,
             auto_record: true,
             theme: Self::default_theme(),
+            map_enabled: false,
+            map_override: false,
+            map_tile_url: String::new(),
+            map_min_zoom: 0,
+            map_max_zoom: Self::default_map_max_zoom(),
+            map_tile_size: Self::default_map_tile_size(),
+            map_cal_a_world: [0.0, 0.0],
+            map_cal_a_pix: [0.0, 0.0],
+            map_cal_b_world: [0.0, 0.0],
+            map_cal_b_pix: [0.0, 0.0],
+            map_view_max_zoom: 0,
+            map_default_zoom: 0,
+            map_default_center: [0.0, 0.0],
         }
     }
 }
@@ -71,6 +118,19 @@ mod tests {
     fn default_port_is_20440() {
         let s = Settings::default();
         assert_eq!(s.port, 20440);
+    }
+
+    #[test]
+    fn legacy_json_without_map_fields_loads_defaults() {
+        // A settings.json written before the map feature existed.
+        let legacy = r#"{"port":20440,"useMph":true,"tireTempCold":60.0,
+            "tireTempOptimal":85.0,"tireTempHot":110.0,"autoRecord":true,"theme":"dark"}"#;
+        let s: Settings = serde_json::from_str(legacy).unwrap();
+        assert!(!s.map_enabled);
+        assert_eq!(s.map_tile_url, "");
+        assert_eq!(s.map_max_zoom, 5);
+        assert_eq!(s.map_tile_size, 256);
+        assert_eq!(s.map_cal_a_world, [0.0, 0.0]);
     }
 
     #[test]

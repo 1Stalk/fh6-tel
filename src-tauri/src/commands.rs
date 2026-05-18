@@ -21,22 +21,49 @@ pub fn get_session_packets(
 }
 
 #[tauri::command]
+pub fn get_session_laps(
+    state: State<AppState>,
+    session_id: i64,
+) -> Result<Vec<db::LapRow>, String> {
+    let conn = state.db.lock().unwrap();
+    db::get_session_laps(&conn, session_id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub fn delete_session(state: State<AppState>, session_id: i64) -> Result<(), String> {
     let conn = state.db.lock().unwrap();
     db::delete_session(&conn, session_id).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn get_settings(state: State<AppState>) -> settings::Settings {
-    state.settings.lock().unwrap().clone()
+pub fn clear_all_sessions(state: State<AppState>) -> Result<(), String> {
+    let conn = state.db.lock().unwrap();
+    db::clear_all_sessions(&conn).map_err(|e| e.to_string())
 }
 
-/// Returns all distinct car ordinals seen in sessions as a JSON object mapping
-/// ordinal → null (unknown). The frontend overlays known names on top of this.
 #[tauri::command]
-pub fn get_session_car_ordinals(state: State<AppState>) -> Result<Vec<i32>, String> {
+pub fn rename_session(
+    state: State<AppState>,
+    session_id: i64,
+    name: Option<String>,
+) -> Result<(), String> {
     let conn = state.db.lock().unwrap();
-    db::get_distinct_car_ordinals(&conn).map_err(|e| e.to_string())
+    db::rename_session(&conn, session_id, name.as_deref()).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn set_session_bookmark(
+    state: State<AppState>,
+    session_id: i64,
+    bookmarked: bool,
+) -> Result<(), String> {
+    let conn = state.db.lock().unwrap();
+    db::set_session_bookmark(&conn, session_id, bookmarked).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn get_settings(state: State<AppState>) -> settings::Settings {
+    state.settings.lock().unwrap().clone()
 }
 
 #[tauri::command]

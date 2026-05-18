@@ -62,9 +62,12 @@ pub async fn run(app: AppHandle, port: u16) {
         // Always emit live data regardless of session state
         let _ = app.emit("telemetry_tick", &pkt);
 
-        // Session management: only open during actual race events (race_position > 0).
-        // Use a grace period before closing so pause-menu packets don't split a session.
-        let raw_in_event = pkt.is_race_on && pkt.race_position > 0;
+        // Record whenever a lap is being timed: races/Rivals (race_position > 0)
+        // and Time Trial (race_position 0 but the lap clock runs). Free-roam has
+        // no lap timer so it stays unrecorded. Grace period stops pause-menu
+        // packets from splitting a session.
+        let timed_lap = pkt.current_lap > 0.0 || pkt.last_lap > 0.0 || pkt.lap_number > 0;
+        let raw_in_event = pkt.is_race_on && (pkt.race_position > 0 || timed_lap);
         if raw_in_event {
             close_pending = 0;
         } else {
@@ -87,6 +90,15 @@ fn handle_session(app: &AppHandle, state: &AppState, pkt: &parser::TelemetryPack
         .unwrap()
         .as_millis() as u64;
 
+    // Progress timer for rewind detection. Races/Rivals report a cumulative
+    // current_race_time; Time Trial leaves it at 0 and only the lap clock
+    // advances — fall back to that so rewinds still stitch the session.
+    let progress = if pkt.current_race_time > 0.0 {
+        pkt.current_race_time
+    } else {
+        pkt.current_lap
+    };
+
     // Apply event transition before inserting so the opening packet is captured
     let action = sm.on_race_on_change(prev_in_event, in_event, pkt.car_ordinal, pkt.car_class, pkt.car_pi);
 
@@ -94,7 +106,7 @@ fn handle_session(app: &AppHandle, state: &AppState, pkt: &parser::TelemetryPack
         SessionAction::Open { car_ordinal, car_class, car_pi } => {
             // Check if the new stream looks like a rewind into the previous session:
             // race time went backward within the rewind window.
-            if let Some(reopen_id) = sm.check_reopen(pkt.current_race_time, now_ms) {
+            if let Some(reopen_id) = sm.check_reopen(progress, now_ms) {
                 match db::reopen_session(&db, reopen_id) {
                     Ok(()) => {
                         sm.set_active_id(Some(reopen_id));
@@ -115,10 +127,18 @@ fn handle_session(app: &AppHandle, state: &AppState, pkt: &parser::TelemetryPack
                 }
             }
         }
-        SessionAction::Close { best_lap } => {
+        SessionAction::Close => {
             if let Some(id) = sm.active_session_id() {
                 sm.note_close(now_ms);
-                if let Err(e) = db::close_session(&db, id, now_ms as i64, best_lap) {
+                // The lap in progress at session end never crossed the line —
+                // record it and let it count toward the best lap.
+                if let Some(lap) = sm.take_final_lap() {
+                    if let Err(e) = db::insert_lap(&db, id, lap.lap_number, lap.lap_time) {
+                        eprintln!("[session] final lap insert error: {e}");
+                    }
+                }
+                let best = sm.best_for_close();
+                if let Err(e) = db::close_session(&db, id, now_ms as i64, best) {
                     eprintln!("[session] close error: {e}");
                     let _ = app.emit("session_error", format!("Failed to close session: {e}"));
                 } else {
@@ -132,7 +152,13 @@ fn handle_session(app: &AppHandle, state: &AppState, pkt: &parser::TelemetryPack
 
     if let Some(session_id) = sm.active_session_id() {
         sm.update_best_lap(pkt.best_lap);
-        sm.update_race_time(pkt.current_race_time);
+        sm.update_race_time(progress);
+        // Persist each lap as the lap counter advances.
+        if let Some(lap) = sm.note_tick(pkt.lap_number, pkt.current_lap, pkt.last_lap) {
+            if let Err(e) = db::insert_lap(&db, session_id, lap.lap_number, lap.lap_time) {
+                eprintln!("[session] lap insert error: {e}");
+            }
+        }
         if let Err(e) = db::insert_packet(&db, session_id, pkt.timestamp_ms, raw) {
             eprintln!("[session] insert error: {e}");
             let _ = app.emit("session_error", format!("Failed to write telemetry: {e}"));

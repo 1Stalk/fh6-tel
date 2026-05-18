@@ -1,6 +1,6 @@
 import { writable } from 'svelte/store';
 import { invoke } from '@tauri-apps/api/core';
-import type { SessionRow, TelemetryPacket, AppSettings } from '$lib/types';
+import type { SessionRow, TelemetryPacket, AppSettings, SessionLap } from '$lib/types';
 
 export const sessions = writable<SessionRow[]>([]);
 export const settings = writable<AppSettings | null>(null);
@@ -14,8 +14,27 @@ export async function loadSessionPackets(sessionId: number): Promise<TelemetryPa
   return invoke<TelemetryPacket[]>('get_session_packets', { sessionId });
 }
 
+export async function loadSessionLaps(sessionId: number): Promise<SessionLap[]> {
+  return invoke<SessionLap[]>('get_session_laps', { sessionId });
+}
+
 export async function deleteSession(sessionId: number) {
   await invoke('delete_session', { sessionId });
+  await loadSessions();
+}
+
+export async function clearAllSessions() {
+  await invoke('clear_all_sessions');
+  await loadSessions();
+}
+
+export async function renameSession(sessionId: number, name: string | null) {
+  await invoke('rename_session', { sessionId, name });
+  await loadSessions();
+}
+
+export async function setSessionBookmark(sessionId: number, bookmarked: boolean) {
+  await invoke('set_session_bookmark', { sessionId, bookmarked });
   await loadSessions();
 }
 

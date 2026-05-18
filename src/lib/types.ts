@@ -10,6 +10,9 @@ export interface TelemetryPacket {
   velX: number;
   velY: number;
   velZ: number;
+  positionX: number;
+  positionY: number;
+  positionZ: number;
   tireSlipRatioFl: number;
   tireSlipRatioFr: number;
   tireSlipRatioRl: number;
@@ -66,6 +69,13 @@ export interface SessionRow {
   carPi: number;
   bestLap: number | null;
   packetCount: number;
+  name: string | null;
+  bookmarked: boolean;
+}
+
+export interface SessionLap {
+  lapNumber: number;
+  lapTime: number;
 }
 
 export interface AppSettings {
@@ -76,6 +86,19 @@ export interface AppSettings {
   tireTempHot: number;
   autoRecord: boolean;
   theme: 'dark' | 'cobalt2' | 'purple';
+  mapEnabled: boolean;
+  mapOverride: boolean;
+  mapTileUrl: string;
+  mapMinZoom: number;
+  mapMaxZoom: number;
+  mapTileSize: number;
+  mapCalAWorld: [number, number];
+  mapCalAPix: [number, number];
+  mapCalBWorld: [number, number];
+  mapCalBPix: [number, number];
+  mapViewMaxZoom: number;
+  mapDefaultZoom: number;
+  mapDefaultCenter: [number, number];
 }
 
 export type DrivetrainLabel = 'FWD' | 'RWD' | 'AWD';

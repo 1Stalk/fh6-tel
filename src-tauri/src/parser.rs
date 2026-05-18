@@ -25,6 +25,9 @@ pub struct TelemetryPacket {
     pub vel_x: f32,
     pub vel_y: f32,
     pub vel_z: f32,
+    pub position_x: f32,
+    pub position_y: f32,
+    pub position_z: f32,
     pub tire_slip_ratio_fl: f32,
     pub tire_slip_ratio_fr: f32,
     pub tire_slip_ratio_rl: f32,
@@ -125,7 +128,9 @@ pub fn parse(buf: &[u8]) -> Result<TelemetryPacket, ParseError> {
     // 268: TireTemp x4, 284: Boost, 288: Fuel ...
     // 312: LapNumber, 314: RacePosition, 315: Accel, 316: Brake ...
     skip_f32_fields(&mut c, 3)?; // bytes 232–243 unknown
-    skip_f32_fields(&mut c, 3)?; // bytes 244–255 Position X/Y/Z
+    let position_x = c.read_f32::<LittleEndian>()?;        // 244 world X
+    let position_y = c.read_f32::<LittleEndian>()?;        // 248 world Y (height)
+    let position_z = c.read_f32::<LittleEndian>()?;        // 252 world Z
     let speed_ms = c.read_f32::<LittleEndian>()?;           // 256
     let power = c.read_f32::<LittleEndian>()?;              // 260
     let torque = c.read_f32::<LittleEndian>()?;             // 264
@@ -171,6 +176,9 @@ pub fn parse(buf: &[u8]) -> Result<TelemetryPacket, ParseError> {
         vel_x,
         vel_y,
         vel_z,
+        position_x,
+        position_y,
+        position_z,
         tire_slip_ratio_fl,
         tire_slip_ratio_fr,
         tire_slip_ratio_rl,
@@ -288,6 +296,18 @@ mod tests {
         buf[268..272].copy_from_slice(&212.0f32.to_le_bytes());
         let pkt = parse(&buf).unwrap();
         assert!((pkt.tire_temp_fl - 100.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn parses_world_position() {
+        let mut buf = zero_packet(323);
+        buf[244..248].copy_from_slice(&123.5f32.to_le_bytes());
+        buf[248..252].copy_from_slice(&7.25f32.to_le_bytes());
+        buf[252..256].copy_from_slice(&(-987.0f32).to_le_bytes());
+        let pkt = parse(&buf).unwrap();
+        assert!((pkt.position_x - 123.5).abs() < 0.001);
+        assert!((pkt.position_y - 7.25).abs() < 0.001);
+        assert!((pkt.position_z - -987.0).abs() < 0.001);
     }
 
     #[test]

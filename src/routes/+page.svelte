@@ -3,18 +3,23 @@
   import { listen } from '@tauri-apps/api/event';
   import { check as checkUpdate } from '@tauri-apps/plugin-updater';
   import { relaunch } from '@tauri-apps/plugin-process';
-  import { startTelemetryListener } from '$lib/stores/telemetry';
+  import { startTelemetryListener, replay } from '$lib/stores/telemetry';
   import { loadSettings, settings } from '$lib/stores/sessions';
   import TopBar from '$lib/components/TopBar.svelte';
   import CompassBar from '$lib/components/CompassBar.svelte';
   import CenterPanel from '$lib/components/CenterPanel.svelte';
   import TireWidget from '$lib/components/TireWidget.svelte';
+  import LiveTrackMap from '$lib/components/LiveTrackMap.svelte';
   import LapBar from '$lib/components/LapBar.svelte';
   import SessionDrawer from '$lib/components/SessionDrawer.svelte';
+  import SessionViewer from '$lib/components/SessionViewer.svelte';
+  import ReplayBar from '$lib/components/ReplayBar.svelte';
   import SettingsModal from '$lib/components/SettingsModal.svelte';
+  import type { SessionRow } from '$lib/types';
 
   let showSessions = $state(false);
   let showSettings = $state(false);
+  let viewerSession = $state<SessionRow | null>(null);
   let toasts = $state<{ id: number; message: string }[]>([]);
   let nextToastId = 0;
   let pendingUpdate = $state<{ version: string; install: () => Promise<void> } | null>(null);
@@ -55,6 +60,14 @@
     const theme = s?.theme ?? 'dark';
     document.documentElement.setAttribute('data-theme', theme);
   });
+
+  // Replaying takes over the live dashboard — get the overlays out of the way.
+  $effect(() => {
+    if ($replay.active) {
+      showSessions = false;
+      viewerSession = null;
+    }
+  });
 </script>
 
 {#if pendingUpdate}
@@ -81,11 +94,14 @@
     </div>
 
     <div class="right-strip">
-      <TireWidget
-        tireTempCold={s?.tireTempCold ?? 60}
-        tireTempOptimal={s?.tireTempOptimal ?? 85}
-        tireTempHot={s?.tireTempHot ?? 110}
-      />
+      <div class="tire-area">
+        <TireWidget
+          tireTempCold={s?.tireTempCold ?? 60}
+          tireTempOptimal={s?.tireTempOptimal ?? 85}
+          tireTempHot={s?.tireTempHot ?? 110}
+        />
+      </div>
+      <LiveTrackMap />
     </div>
   </div>
 
@@ -95,8 +111,21 @@
 </div>
 
 {#if showSessions}
-  <SessionDrawer onClose={() => (showSessions = false)} useMph={s?.useMph ?? true} />
+  <SessionDrawer
+    onClose={() => (showSessions = false)}
+    onOpen={(session) => (viewerSession = session)}
+  />
 {/if}
+
+{#if viewerSession}
+  <SessionViewer
+    session={viewerSession}
+    useMph={s?.useMph ?? true}
+    onClose={() => (viewerSession = null)}
+  />
+{/if}
+
+<ReplayBar />
 
 {#if toasts.length > 0}
   <div class="toast-stack">
@@ -205,7 +234,12 @@
   }
 
   .center-area { background: var(--bg-body); overflow: hidden; min-width: 0; }
-  .right-strip { border-left: 1px solid var(--bd-subtle); background: var(--bg-body); overflow: hidden; min-width: 0; }
+  .right-strip {
+    border-left: 1px solid var(--bd-subtle); background: var(--bg-body);
+    overflow: hidden; min-width: 0;
+    display: flex; flex-direction: column;
+  }
+  .tire-area { flex: 1; min-height: 0; }
   .lap-bar { height: clamp(2.5rem, 5.5vh, 4rem); flex-shrink: 0; }
 
   .update-bar {

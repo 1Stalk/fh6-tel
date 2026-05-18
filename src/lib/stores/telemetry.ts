@@ -5,15 +5,67 @@ import type { TelemetryPacket } from '$lib/types';
 export const packet = writable<TelemetryPacket | null>(null);
 export const isConnected = writable(false);
 
+// Replay state. When `active`, the whole dashboard renders `packets[index]`
+// instead of live telemetry — no dashboard component needs to change because
+// they all read `displayPacket`.
+export interface ReplayState {
+  active: boolean;
+  packets: TelemetryPacket[];
+  index: number;
+  playing: boolean;
+  speed: number;
+  sessionId: number | null;
+  label: string;
+}
+
+const emptyReplay: ReplayState = {
+  active: false,
+  packets: [],
+  index: 0,
+  playing: false,
+  speed: 1,
+  sessionId: null,
+  label: '',
+};
+
+export const replay = writable<ReplayState>({ ...emptyReplay });
+
+export function startReplay(
+  sessionId: number,
+  label: string,
+  packets: TelemetryPacket[]
+) {
+  replay.set({
+    active: true,
+    packets,
+    index: 0,
+    playing: false,
+    speed: 1,
+    sessionId,
+    label,
+  });
+}
+
+export function exitReplay() {
+  replay.set({ ...emptyReplay });
+}
+
 // Freezes at last isRaceOn=true packet so pause menu doesn't clear the display
 let _frozen: TelemetryPacket | null = null;
-export const displayPacket = derived(packet, ($p): TelemetryPacket | null => {
-  if ($p !== null && $p.isRaceOn) {
-    _frozen = $p;
-    return $p;
+export const displayPacket = derived(
+  [packet, replay],
+  ([$p, $r]): TelemetryPacket | null => {
+    if ($r.active && $r.packets.length > 0) {
+      const i = Math.min(Math.max($r.index, 0), $r.packets.length - 1);
+      return $r.packets[i];
+    }
+    if ($p !== null && $p.isRaceOn) {
+      _frozen = $p;
+      return $p;
+    }
+    return _frozen ?? $p;
   }
-  return _frozen ?? $p;
-});
+);
 
 export const speedMph = derived(displayPacket, ($p) =>
   $p ? $p.speedMs * 2.23694 : 0
