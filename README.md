@@ -30,7 +30,6 @@ Download the latest `.exe` installer from [Releases](https://github.com/TheBanHa
 3. Set **Data Out** to **On**
 4. Set **Data Out IP Address** to `127.0.0.1`
 5. Set **Data Out IP Port** to `20440` (or your custom port from the app's Settings)
-6. Set **Data Out Package Format** to **Car Dash**
 
 The dashboard shows a green dot in the top-left when packets are received.
 
