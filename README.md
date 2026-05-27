@@ -1,7 +1,7 @@
 # FH6 Telemetry Dashboard
 
 [![Latest Release](https://img.shields.io/github/v/release/TheBanHammer/fh6-tel?label=version&color=blue)](https://github.com/TheBanHammer/fh6-tel/releases/latest)
-[![Download](https://img.shields.io/github/downloads/TheBanHammer/fh6-tel/total?label=downloads)](https://github.com/TheBanHammer/fh6-tel/releases/latest)
+[![Download](https://img.shields.io/github/downloads/TheBanHammer/fh6-tel/total)](https://github.com/TheBanHammer/fh6-tel/releases/latest)
 [![Build](https://img.shields.io/github/actions/workflow/status/TheBanHammer/fh6-tel/release.yml?label=build)](https://github.com/TheBanHammer/fh6-tel/actions/workflows/release.yml)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows-0078d4?logo=windows)](https://github.com/TheBanHammer/fh6-tel/releases/latest)
