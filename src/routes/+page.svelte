@@ -1,8 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { listen } from '@tauri-apps/api/event';
-  import { check as checkUpdate } from '@tauri-apps/plugin-updater';
-  import { relaunch } from '@tauri-apps/plugin-process';
+  import { invoke } from '@tauri-apps/api/core';
   import { startTelemetryListener, replay } from '$lib/stores/telemetry';
   import { loadSettings, settings } from '$lib/stores/sessions';
   import TopBar from '$lib/components/TopBar.svelte';
@@ -37,14 +36,13 @@
     await listen('session_error', (e) => addToast(String(e.payload)));
     await listen('udp_bind_failed', (e) => addToast(String(e.payload)));
     try {
-      const update = await checkUpdate();
-      if (update) {
+      const info = await invoke<{ version: string; is_deb: boolean } | null>('check_for_update');
+      if (info) {
         pendingUpdate = {
-          version: update.version,
+          version: info.version,
           install: async () => {
             updateInstalling = true;
-            await update.downloadAndInstall();
-            await relaunch();
+            await invoke('install_update', { isDeb: info.is_deb });
           },
         };
       }
