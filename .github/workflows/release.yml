@@ -104,3 +104,57 @@ jobs:
             (*Settings → HUD and gameplay → Data out → Format: Car Dash*).
           releaseDraft: true
           prerelease: false
+
+  patch-updater:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v${{ inputs.version }}
+
+      - uses: ./.github/actions/setup-build-env
+
+      - name: Sign deb and inject linux-x86_64-deb into latest.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          VERSION="${{ inputs.version }}"
+          TAG="v${VERSION}"
+          REPO="${GITHUB_REPOSITORY}"
+
+          # Download the .deb from the draft release
+          mkdir -p /tmp/release-assets
+          gh release download "$TAG" --pattern "*.deb" --dir /tmp/release-assets
+          DEB_FILE=$(ls /tmp/release-assets/*.deb | head -1)
+          DEB_NAME=$(basename "$DEB_FILE")
+
+          # Sign with the Tauri signer (produces ${DEB_FILE}.sig)
+          npx tauri signer sign "$DEB_FILE" \
+            -k "$TAURI_SIGNING_PRIVATE_KEY" \
+            -p "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD"
+          SIG=$(cat "${DEB_FILE}.sig")
+
+          # Construct the GitHub release download URL for the .deb
+          DEB_URL="https://github.com/${REPO}/releases/download/${TAG}/${DEB_NAME}"
+
+          # Download, patch, and re-upload latest.json
+          gh release download "$TAG" --pattern "latest.json" --dir /tmp/release-assets
+          jq \
+            --arg sig "$SIG" \
+            --arg url "$DEB_URL" \
+            '.platforms["linux-x86_64-deb"] = {"signature": $sig, "url": $url}' \
+            /tmp/release-assets/latest.json > /tmp/latest-patched.json
+
+          gh release upload "$TAG" /tmp/latest-patched.json \
+            --clobber --repo "$REPO"
+
+          # Upload the .sig as a release asset for auditability
+          gh release upload "$TAG" "${DEB_FILE}.sig" \
+            --repo "$REPO"
