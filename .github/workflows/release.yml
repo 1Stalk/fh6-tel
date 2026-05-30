@@ -16,6 +16,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Validate version
+        shell: bash
+        run: |
+          VERSION="${{ inputs.version }}"
+          # The Windows MSI (WiX) bundler only accepts MAJOR.MINOR.PATCH with an
+          # optional NUMERIC pre-release identifier <= 65535. Reject anything else
+          # here so a bad input fails before pushing a tag or starting any build.
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9]+)?$ ]]; then
+            echo "::error::Invalid version '$VERSION'. Use MAJOR.MINOR.PATCH, optionally with a numeric pre-release <= 65535 (e.g. 1.1.2 or 1.1.2-1). Non-numeric identifiers like '-pre1' or '-rc1' break the Windows MSI build."
+            exit 1
+          fi
+
       - name: Bump version and tag
         shell: bash
         run: |
