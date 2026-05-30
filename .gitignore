@@ -11,3 +11,4 @@ vite.config.ts.timestamp-*
 .claude/
 scripts/*
 !scripts/download-map-tiles.mjs
+docs/*

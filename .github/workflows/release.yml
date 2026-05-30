@@ -8,10 +8,10 @@ on:
         required: true
 
 jobs:
-  release:
+  prepare:
     permissions:
       contents: write
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
@@ -44,6 +44,27 @@ jobs:
           git tag "v${{ inputs.version }}" 2>/dev/null || echo "Tag already exists locally"
           git push origin "v${{ inputs.version }}" 2>/dev/null || echo "Tag already exists on remote"
 
+  build:
+    needs: prepare
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            args: '--target universal-apple-darwin'
+          - platform: ubuntu-22.04
+            args: ''
+          - platform: windows-latest
+            args: ''
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v${{ inputs.version }}
+
       - uses: ./.github/actions/setup-build-env
 
       - name: Build and publish release
@@ -53,6 +74,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
+          args: ${{ matrix.args }}
           updaterJsonPath: latest.json
           updaterJsonPreferNsis: true
           tagName: v${{ inputs.version }}
@@ -60,7 +82,11 @@ jobs:
           releaseBody: |
             ## Install
 
-            Download the `.exe` installer (NSIS) or `.msi` below.
+            **Windows** — download the `.exe` installer (NSIS) or `.msi`.
+            **macOS** — download the `.dmg` (universal, Intel + Apple Silicon). The build is
+            unsigned, so on first launch right-click the app → **Open**, or run
+            `xattr -dr com.apple.quarantine "/Applications/FH6 Telemetry.app"`.
+            **Linux** — download the `.AppImage` (portable), or the `.deb` / `.rpm`.
 
             Configure Forza Horizon 6 to send UDP telemetry to your PC's IP on port **20440**
             (*Settings → HUD and gameplay → Data out → Format: Car Dash*).
