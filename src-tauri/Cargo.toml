@@ -2,6 +2,7 @@
 name = "fh6-tel"
 version = "1.2.0"
 edition = "2021"
+autobins = false
 
 [lib]
 name = "fh6_tel_lib"

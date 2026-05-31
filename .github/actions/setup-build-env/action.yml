@@ -34,7 +34,9 @@ runs:
           libxdo-dev \
           libssl-dev \
           patchelf \
-          file
+          file \
+          squashfs-tools \
+          libfuse2
 
     - name: Configure MSVC linker
       if: runner.os == 'Windows'
