@@ -1,13 +1,14 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { isDesktop } from '$lib/ipc';
   import { startTelemetryListener, replay } from '$lib/stores/telemetry';
-  import { loadSettings, settings } from '$lib/stores/sessions';
+  import { loadSettings, settings, saveSettings } from '$lib/stores/sessions';
   import TopBar from '$lib/components/TopBar.svelte';
   import CompassBar from '$lib/components/CompassBar.svelte';
   import CenterPanel from '$lib/components/CenterPanel.svelte';
   import TireWidget from '$lib/components/TireWidget.svelte';
   import LiveTrackMap from '$lib/components/LiveTrackMap.svelte';
+  import FloatingPanel from '$lib/components/FloatingPanel.svelte';
   import LapBar from '$lib/components/LapBar.svelte';
   import SessionDrawer from '$lib/components/SessionDrawer.svelte';
   import SessionViewer from '$lib/components/SessionViewer.svelte';
@@ -22,6 +23,34 @@
   let nextToastId = 0;
   let pendingUpdate = $state<{ version: string; install: () => Promise<void> } | null>(null);
   let updateInstalling = $state(false);
+  let popoutRef: Window | null = null;
+  let mapPoppedOut = $state(false);
+  let controlBc: BroadcastChannel | null = null;
+  let heartbeatTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function onPopoutClosed() {
+    mapPoppedOut = false;
+    if (heartbeatTimer) { clearTimeout(heartbeatTimer); heartbeatTimer = null; }
+  }
+
+  function resetHeartbeat() {
+    if (heartbeatTimer) clearTimeout(heartbeatTimer);
+    // 4 s without a heartbeat → pop-out must have died without sending popout-closed.
+    heartbeatTimer = setTimeout(onPopoutClosed, 4000);
+  }
+
+  async function closePopout() {
+    onPopoutClosed();
+    if (isDesktop) {
+      try {
+        const { WebviewWindow } = await import('@tauri-apps/api/webviewWindow');
+        const win = await WebviewWindow.getByLabel('map').catch(console.error);
+        await win?.close();
+      } catch { /* ignore */ }
+    } else {
+      popoutRef?.close();
+    }
+  }
 
   function addToast(message: string) {
     const id = nextToastId++;
@@ -29,9 +58,48 @@
     setTimeout(() => { toasts = toasts.filter(t => t.id !== id); }, 4000);
   }
 
+  async function popOutMap() {
+    if (isDesktop) {
+      // Tauri: create a new WebviewWindow; focus if already open
+      try {
+        const { WebviewWindow } = await import('@tauri-apps/api/webviewWindow');
+        const existing = await WebviewWindow.getByLabel('map').catch(() => null);
+        if (existing) {
+          await existing.setFocus();
+          return;
+        }
+        await new WebviewWindow('map', {
+          url: '/map',
+          title: 'Track Map — FH6 Telemetry',
+          width: 500,
+          height: 520,
+          resizable: true,
+          decorations: true,
+        });
+      } catch (e) {
+        console.error('Failed to open map window', e);
+      }
+    } else {
+      // Browser: reuse existing pop-out if still open
+      if (popoutRef && !popoutRef.closed) {
+        popoutRef.focus();
+        return;
+      }
+      popoutRef = window.open('/map', 'fh6-map', 'width=500,height=520,resizable=yes');
+    }
+  }
+
+  onDestroy(() => controlBc?.close());
+
   onMount(async () => {
     await loadSettings();
     await startTelemetryListener({ onError: (m) => addToast(m), onBindFailed: (m) => addToast(m) });
+    controlBc = new BroadcastChannel('fh6-tel-map');
+    controlBc.onmessage = (e: MessageEvent<{ type: string }>) => {
+      if (e.data?.type === 'popout-opened') { mapPoppedOut = true; resetHeartbeat(); }
+      if (e.data?.type === 'popout-heartbeat') { resetHeartbeat(); }
+      if (e.data?.type === 'popout-closed') { onPopoutClosed(); }
+    };
     if (isDesktop) {
       try {
         const { invoke } = await import('@tauri-apps/api/core');
@@ -83,6 +151,14 @@
     useMph={s?.useMph ?? true}
     onSettings={() => (showSettings = true)}
     onSessions={() => (showSessions = !showSessions)}
+    tiresVisible={s?.tiresVisible ?? true}
+    mapEnabled={s?.mapEnabled ?? false}
+    {mapPoppedOut}
+    onToggleTires={async () => { if (s) await saveSettings({ ...s, tiresVisible: !(s.tiresVisible ?? true) }); }}
+    onToggleMap={async () => {
+      if (mapPoppedOut) { await closePopout(); return; }
+      if (s) await saveSettings({ ...s, mapEnabled: !s.mapEnabled });
+    }}
   />
   <CompassBar />
 
@@ -90,18 +166,45 @@
     <div class="center-area">
       <CenterPanel useMph={s?.useMph ?? true} />
     </div>
-
-    <div class="right-strip">
-      <div class="tire-area">
-        <TireWidget
-          tireTempCold={s?.tireTempCold ?? 60}
-          tireTempOptimal={s?.tireTempOptimal ?? 85}
-          tireTempHot={s?.tireTempHot ?? 110}
-        />
-      </div>
-      <LiveTrackMap />
-    </div>
   </div>
+
+  {#if s?.tiresVisible ?? true}
+    <FloatingPanel
+      id="fh6-tires"
+      title="TIRES"
+      defaultWidth={200}
+      defaultTop={64}
+      onClose={async () => { if (s) await saveSettings({ ...s, tiresVisible: false }); }}
+    >
+      <TireWidget
+        tireTempCold={s?.tireTempCold ?? 60}
+        tireTempOptimal={s?.tireTempOptimal ?? 85}
+        tireTempHot={s?.tireTempHot ?? 110}
+      />
+    </FloatingPanel>
+  {/if}
+
+  {#if s?.mapEnabled}
+    <FloatingPanel
+      id="fh6-map"
+      title="TRACK MAP"
+      defaultWidth={200}
+      defaultBottom={56}
+      resizable
+      hidden={mapPoppedOut}
+      onClose={async () => { if (s) await saveSettings({ ...s, mapEnabled: false }); }}
+    >
+      {#snippet actions()}
+        <button
+          class="popout-btn"
+          onclick={popOutMap}
+          title="Pop out map"
+          aria-label="Pop out map"
+        >⤢</button>
+      {/snippet}
+      <LiveTrackMap />
+    </FloatingPanel>
+  {/if}
 
   <div class="lap-bar">
     <LapBar />
@@ -244,19 +347,11 @@
 
   .main {
     flex: 1;
-    display: grid;
-    grid-template-columns: 1fr clamp(130px, 24vw, 210px);
     min-height: 0;
     overflow: hidden;
   }
 
-  .center-area { background: var(--bg-body); overflow: hidden; min-width: 0; }
-  .right-strip {
-    border-left: 1px solid var(--bd-subtle); background: var(--bg-body);
-    overflow: hidden; min-width: 0;
-    display: flex; flex-direction: column;
-  }
-  .tire-area { flex: 1; min-height: 0; }
+  .center-area { background: var(--bg-body); overflow: hidden; width: 100%; height: 100%; }
   .lap-bar { height: clamp(2.5rem, 5.5vh, 4rem); flex-shrink: 0; }
 
   .update-bar {
@@ -288,4 +383,15 @@
     color: #fca5a5; font-size: 0.8rem; padding: 0.5rem 1rem;
     max-width: 420px; text-align: center;
   }
+
+  .popout-btn {
+    background: none;
+    border: none;
+    color: var(--tx-xdim);
+    font-size: 0.75rem;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+  }
+  .popout-btn:hover { color: var(--tx-hi); }
 </style>
