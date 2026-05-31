@@ -3,6 +3,7 @@ name = "fh6-tel"
 version = "1.2.0"
 edition = "2021"
 autobins = false
+default-run = "fh6-tel"
 
 [lib]
 name = "fh6_tel_lib"
@@ -11,7 +12,6 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 [[bin]]
 name = "fh6-tel"
 path = "src/main.rs"
-required-features = ["desktop"]
 
 [[bin]]
 name = "fh6-tel-serve"
