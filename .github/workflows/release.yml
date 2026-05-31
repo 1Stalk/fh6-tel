@@ -98,17 +98,20 @@ jobs:
           tagName: v${{ inputs.version }}
           releaseName: FH6 Telemetry v${{ inputs.version }}
           releaseBody: |
-            ## Install
+            | | Windows | macOS | Linux |
+            |---|---|---|---|
+            | **Desktop app** | [.exe installer](https://github.com/${{ github.repository }}/releases/download/v${{ inputs.version }}/FH6.Telemetry_${{ inputs.version }}_x64-setup.exe) · [.msi](https://github.com/${{ github.repository }}/releases/download/v${{ inputs.version }}/FH6.Telemetry_${{ inputs.version }}_x64_en-US.msi) | [.dmg (Intel + Apple Silicon)](https://github.com/${{ github.repository }}/releases/download/v${{ inputs.version }}/FH6.Telemetry_${{ inputs.version }}_universal.dmg) | [.AppImage](https://github.com/${{ github.repository }}/releases/download/v${{ inputs.version }}/FH6.Telemetry_${{ inputs.version }}_amd64.AppImage) · [.deb](https://github.com/${{ github.repository }}/releases/download/v${{ inputs.version }}/FH6.Telemetry_${{ inputs.version }}_amd64.deb) · [.rpm](https://github.com/${{ github.repository }}/releases/download/v${{ inputs.version }}/FH6.Telemetry-${{ inputs.version }}-1.x86_64.rpm) |
+            | **Headless server** | [.exe](https://github.com/${{ github.repository }}/releases/download/v${{ inputs.version }}/fh6-tel-serve-windows-x86_64.exe) | [universal binary](https://github.com/${{ github.repository }}/releases/download/v${{ inputs.version }}/fh6-tel-serve-macos-universal) | [x86\_64 binary](https://github.com/${{ github.repository }}/releases/download/v${{ inputs.version }}/fh6-tel-serve-linux-x86_64) |
 
-            **Windows** — download the `.exe` installer (NSIS) or `.msi`.
-            **macOS** — download the `.dmg` (universal, Intel + Apple Silicon). The build is
-            unsigned, so on first launch right-click the app → **Open**, or run
-            `xattr -dr com.apple.quarantine "/Applications/FH6 Telemetry.app"`.
-            **Linux** — download the `.AppImage` (portable), or the `.deb` / `.rpm`.
-            **Headless server** — download `fh6-tel-serve-*` to run the dashboard as a service; see `packaging/`.
+            > **macOS desktop** — build is unsigned. On first launch right-click → **Open**, or run:
+            > `xattr -dr com.apple.quarantine "/Applications/FH6 Telemetry.app"`
 
-            Configure Forza Horizon 6 to send UDP telemetry to your PC's IP on port **20440**
-            (*Settings → HUD and gameplay → Data out → Format: Car Dash*).
+            **Headless server** — serves the full dashboard in any browser without a desktop window.
+            Run `fh6-tel-serve --ip 0.0.0.0 --port 8080 --auth-token <secret>` then open `http://<ip>:8080`.
+            Docker: `docker pull ghcr.io/${{ github.repository_owner }}/fh6-tel-serve:${{ inputs.version }}`
+            See [packaging/](https://github.com/${{ github.repository }}/tree/main/packaging/) for service setup.
+
+            **Forza setup** — Settings → HUD and Gameplay → Data Out: **On** · Format: **Car Dash** · IP: your PC's IP · Port: **20440**
           releaseDraft: true
           prerelease: false
 
