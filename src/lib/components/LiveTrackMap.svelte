@@ -14,7 +14,8 @@
 
   $effect(() => {
     const p = $packet;
-    if ($replay.active || !p || !p.isRaceOn) return;
+    if ($replay.active) return;
+    if (!p || !p.isRaceOn) { livePosition = null; return; }
     if (p.positionX !== 0 || p.positionZ !== 0) livePosition = p;
   });
 
