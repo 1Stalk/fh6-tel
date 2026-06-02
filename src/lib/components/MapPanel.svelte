@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import type { Map as LMap, TileLayer, LayerGroup } from 'leaflet';
+  import type { Map as LMap, TileLayer, LayerGroup, Marker } from 'leaflet';
   import TrackMap from './TrackMap.svelte';
   import { effectiveMapConfig } from '$lib/mapDefaults';
   import { xyzSimpleCRS } from '$lib/mapCrs';
@@ -65,7 +65,9 @@
   let L: typeof import('leaflet') | null = null;
   let map: LMap | null = null;
   let tiles: TileLayer | null = null;
-  let traceLayer: LayerGroup | null = null;
+  let polylineLayer: LayerGroup | null = null;
+  let markerLayer: LayerGroup | null = null;
+  let playerMarker: Marker | null = null;
 
   onMount(async () => {
     if (!usable || !host) return;
@@ -90,7 +92,8 @@
       tileSize: cfg.tileSize,
       noWrap: true,
     }).addTo(map);
-    traceLayer = L.layerGroup().addTo(map);
+    polylineLayer = L.layerGroup().addTo(map);
+    markerLayer = L.layerGroup().addTo(map);
     // Open at the configured default view.
     map.setView(
       map.unproject(L.point(cfg.defaultCenter[0], cfg.defaultCenter[1]), cfg.maxZoom),
@@ -106,6 +109,7 @@
 
   onDestroy(() => {
     resizeObserver?.disconnect();
+    playerMarker = null;
     map?.remove();
     map = null;
   });
@@ -115,14 +119,13 @@
   }
 
   function redraw() {
-    if (!map || !L || !traceLayer || !calib) return;
-    traceLayer.clearLayers();
+    if (!map || !L || !polylineLayer || !markerLayer || !calib) return;
 
     const valid = points.filter((p) => p.positionX !== 0 || p.positionZ !== 0);
     if (valid.length === 0) return;
 
     if (drawLine && valid.length > 1) {
-      // One polyline per lap so each lap carries its own colour.
+      polylineLayer.clearLayers();
       let seg: ReturnType<typeof pixToLatLng>[] = [];
       let lap = valid[0].lapNumber;
       const flush = () => {
@@ -131,7 +134,7 @@
             color: colorByLap ? LAP_COLORS[lap % LAP_COLORS.length] : '#3b82f6',
             weight: compact ? 2 : 3,
             opacity: 0.9,
-          }).addTo(traceLayer!);
+          }).addTo(polylineLayer!);
         }
       };
       for (const p of valid) {
@@ -143,6 +146,8 @@
         seg.push(pixToLatLng(worldToPix(p)));
       }
       flush();
+    } else if (!drawLine) {
+      polylineLayer.clearLayers();
     }
 
     const mi =
@@ -152,9 +157,6 @@
     const mp = points[mi] ?? valid[valid.length - 1];
     if (mp && (mp.positionX !== 0 || mp.positionZ !== 0)) {
       const ll = pixToLatLng(worldToPix(mp));
-      // Heading from world-space yaw, matching CompassBar (0° = north). The map
-      // is north-up, so a north-pointing arrow rotated clockwise by the
-      // heading aligns with the compass.
       const headingDeg = ((mp.yaw * 180) / Math.PI) % 360;
       const sz = compact ? 22 : 28;
       const icon = L.divIcon({
@@ -167,12 +169,15 @@
         iconSize: [sz, sz],
         iconAnchor: [sz / 2, sz / 2],
       });
-      L.marker(ll, { icon, interactive: false }).addTo(traceLayer);
+
+      if (playerMarker) {
+        playerMarker.setLatLng(ll);
+        playerMarker.setIcon(icon);
+      } else {
+        playerMarker = L.marker(ll, { icon, interactive: false }).addTo(markerLayer);
+      }
 
       if (fixedTrace && valid.length > 1) {
-        // Replay / recorded view: fit the whole track once, then lock the
-        // camera to that extent — the user may zoom in & pan, but can't zoom
-        // out past the full-track view or pan off the track.
         if (!boundsApplied) {
           const b = L.latLngBounds(valid.map((p) => pixToLatLng(worldToPix(p))));
           map.fitBounds(b, { padding: [20, 20], maxZoom: cfg.defaultZoom });
@@ -181,12 +186,10 @@
           boundsApplied = true;
         }
       } else if (drawLine && valid.length > 1) {
-        // Live recording: track grows, keep the whole thing framed.
         clearBounds();
         const b = L.latLngBounds(valid.map((p) => pixToLatLng(worldToPix(p))));
         map.fitBounds(b, { padding: [20, 20], maxZoom: cfg.defaultZoom });
       } else {
-        // Free-roam: follow the player at the user's current zoom.
         clearBounds();
         map.setView(ll, map.getZoom(), { animate: false });
       }
